@@ -1,9 +1,10 @@
+
 import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime, time
 
-# --- Load Supabase credentials from Streamlit secrets ---
+# --- Supabase credentials ---
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 SUPABASE_TABLE = "sessions"
@@ -11,7 +12,7 @@ SUPABASE_TABLE = "sessions"
 def log_to_supabase(row: dict):
     headers = {
         "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Authorization": f"Bearer " + SUPABASE_KEY,
         "Content-Type": "application/json"
     }
     res = requests.post(
@@ -24,15 +25,31 @@ def log_to_supabase(row: dict):
     else:
         st.success("✅ Session saved to Supabase.")
 
+# --- Initial appliance list ---
+default_appliances = ["oven", "dishwasher", "washing machine", "dryer", "sprinkler", "microwave"]
+if "appliance_list" not in st.session_state:
+    st.session_state.appliance_list = default_appliances.copy()
+
 st.title("🔌 Appliance Logger")
 
 if "active_sessions" not in st.session_state:
     st.session_state.active_sessions = {}
 
-# --- Start a session ---
-st.header("▶️ Start Appliance")
+# --- Start Session UI ---
+st.header("▶️ Start Appliance Session")
 
-appliance = st.text_input("Appliance name")
+selected = st.selectbox("Select appliance", st.session_state.appliance_list + ["Other..."])
+if selected == "Other...":
+    custom_appliance = st.text_input("Enter new appliance name")
+    if custom_appliance:
+        if custom_appliance not in st.session_state.appliance_list:
+            st.session_state.appliance_list.append(custom_appliance)
+        appliance = custom_appliance
+    else:
+        appliance = None
+else:
+    appliance = selected
+
 notes = st.text_input("Optional notes")
 certainty = st.slider("Certainty (1 = unsure, 5 = sure)", 1, 5, 3)
 
@@ -45,7 +62,7 @@ if appliance and appliance not in st.session_state.active_sessions:
         }
         st.success(f"{appliance} started.")
 
-# --- Running appliances ---
+# --- Running Appliances ---
 st.header("⏱ Currently Running")
 
 if st.session_state.active_sessions:
@@ -65,11 +82,16 @@ if st.session_state.active_sessions:
 else:
     st.info("No running appliances.")
 
-# --- Manual entry ---
+# --- Manual Entry ---
 st.header("✍️ Add Session Manually")
 
 with st.expander("Add manually"):
-    man_app = st.text_input("Appliance", key="manual_app")
+    man_app = st.selectbox("Appliance", st.session_state.appliance_list + ["Other"], key="manual_app_select")
+    if man_app == "Other":
+        man_app = st.text_input("Enter custom appliance", key="manual_custom_app")
+        if man_app and man_app not in st.session_state.appliance_list:
+            st.session_state.appliance_list.append(man_app)
+
     man_start_date = st.date_input("Start date")
     man_start_time = st.time_input("Start time")
     man_end_date = st.date_input("End date")
